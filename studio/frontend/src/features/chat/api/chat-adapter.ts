@@ -6066,6 +6066,7 @@ export function createOpenAIStreamAdapter(
         });
         const externalCapabilities = getProviderCapabilities(
           externalProvider?.providerType,
+          externalProvider?.apiType,
         );
         const buildRequestPayload = async (
           forceRefreshPublicKey = false,
@@ -6351,6 +6352,7 @@ export function createOpenAIStreamAdapter(
                   }
                 : {}),
               provider_base_url: externalProvider.baseUrl || null,
+              provider_api_type: externalProvider.apiType ?? "chat_completions",
               ...(openaiCodeExecContainerId
                 ? {
                     openai_code_exec_container_id: openaiCodeExecContainerId,

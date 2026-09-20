@@ -2478,7 +2478,7 @@ export function ChatPage({
     const provider = externalProvidersForChat.find(
       (p) => p.id === selection.providerId,
     );
-    const baseCapabilities = getProviderCapabilities(provider?.providerType);
+    const baseCapabilities = getProviderCapabilities(provider?.providerType, provider?.apiType);
     if (!baseCapabilities) return baseCapabilities;
     const anthropicThinkingEnabled =
       provider?.providerType === "anthropic" &&
