@@ -6101,6 +6101,8 @@ export function createOpenAIStreamAdapter(
         const externalCapabilities = getProviderCapabilities(
           externalProvider?.providerType,
           externalProvider?.apiType,
+          externalSelection?.modelId,
+          externalProvider?.baseUrl,
         );
         const buildRequestPayload = async (
           forceRefreshPublicKey = false,

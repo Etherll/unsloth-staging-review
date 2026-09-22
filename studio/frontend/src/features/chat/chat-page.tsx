@@ -2481,6 +2481,8 @@ export function ChatPage({
     const baseCapabilities = getProviderCapabilities(
       provider?.providerType,
       provider?.apiType,
+      selection.modelId,
+      provider?.baseUrl,
     );
     if (!baseCapabilities) return baseCapabilities;
     const anthropicThinkingEnabled =
