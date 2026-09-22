@@ -2478,7 +2478,12 @@ export function ChatPage({
     const provider = externalProvidersForChat.find(
       (p) => p.id === selection.providerId,
     );
-    const baseCapabilities = getProviderCapabilities(provider?.providerType);
+    const baseCapabilities = getProviderCapabilities(
+      provider?.providerType,
+      provider?.apiType,
+      selection.modelId,
+      provider?.baseUrl,
+    );
     if (!baseCapabilities) return baseCapabilities;
     const anthropicThinkingEnabled =
       provider?.providerType === "anthropic" &&
@@ -2511,6 +2516,7 @@ export function ChatPage({
       {
         isReasoningProvider: provider?.isReasoningModel === true,
         baseUrl: provider?.baseUrl ?? null,
+        apiType: provider?.apiType,
       },
     );
     const state = useChatRuntimeStore.getState();
@@ -2524,6 +2530,7 @@ export function ChatPage({
     const nextReasoningEffort = resolveExternalReasoningEffort({
       caps: reasoningCaps,
       providerType: provider?.providerType,
+      apiType: provider?.apiType,
       // Same as the switch below: a checkpoint that changed without going through it leaves the
       // previous model's pin in the live level, which an unpinned model must not inherit.
       current:
@@ -2545,12 +2552,14 @@ export function ChatPage({
       provider?.providerType,
       selection.modelId,
       provider?.baseUrl,
+      provider?.apiType,
     );
     const supportsBuiltinImageGeneration =
       providerSupportsBuiltinImageGeneration(
         provider?.providerType,
         selection.modelId,
         provider?.baseUrl,
+        provider?.apiType,
       );
     const supportsBuiltinWebFetch = providerSupportsBuiltinWebFetch(
       provider?.providerType,
@@ -2590,7 +2599,11 @@ export function ChatPage({
     // provider that cannot use it runs nothing either way.
     const canRunCode = codeToolCanRun({
       hostedCodeExecutionForThisTurn: supportsBuiltinCodeExecution,
-      providerHostsCodeExecution: providerHostsCodeExecution(provider?.providerType),
+      providerHostsCodeExecution: providerHostsCodeExecution(
+        provider?.providerType,
+        provider?.baseUrl,
+        provider?.apiType,
+      ),
       supportsStudioTools: supportsStudioToolsHere,
     });
     const nextToolsEnabled = canSearch
@@ -2653,12 +2666,14 @@ export function ChatPage({
       {
         isReasoningProvider: provider?.isReasoningModel === true,
         baseUrl: provider?.baseUrl ?? null,
+        apiType: provider?.apiType,
       },
     );
     reconcilePinnedReasoningEffort({
       checkpoint: inferenceParams.checkpoint,
       caps,
       providerType: provider?.providerType,
+      apiType: provider?.apiType,
     });
   }, [activePinnedEffort, externalProvidersForChat, inferenceParams.checkpoint]);
   // A catalog that lands after selection refreshes only the stored reasoning fields (the effort shortcut reads them),
@@ -2683,6 +2698,7 @@ export function ChatPage({
       {
         isReasoningProvider: provider?.isReasoningModel === true,
         baseUrl: provider?.baseUrl ?? null,
+        apiType: provider?.apiType,
       },
     );
     useChatRuntimeStore.setState(
@@ -2694,6 +2710,7 @@ export function ChatPage({
       checkpoint: inferenceParams.checkpoint,
       caps,
       providerType: provider?.providerType,
+      apiType: provider?.apiType,
     });
   }, [modelCatalogChange, inferenceParams.checkpoint]);
   const canCompare = useMemo(() => {
@@ -3188,6 +3205,7 @@ export function ChatPage({
           {
             isReasoningProvider: selectedProvider?.isReasoningModel === true,
             baseUrl: selectedProvider?.baseUrl ?? null,
+            apiType: selectedProvider?.apiType,
           },
         );
         const effortLevels = reasoningCaps.reasoningEffortLevels;
@@ -3197,6 +3215,7 @@ export function ChatPage({
         const nextReasoningEffort = resolveExternalReasoningEffort({
           caps: reasoningCaps,
           providerType: selectedProvider?.providerType,
+          apiType: selectedProvider?.apiType,
           // The outgoing model's pin is what the live level holds, so an unpinned target resolves
           // from the chat's own effort rather than inheriting one model's override.
           current:
@@ -3225,12 +3244,14 @@ export function ChatPage({
             selectedProvider?.providerType,
             selectedExternal?.modelId,
             selectedProvider?.baseUrl,
+            selectedProvider?.apiType,
           );
         const supportsBuiltinImageGeneration =
           providerSupportsBuiltinImageGeneration(
             selectedProvider?.providerType,
             selectedExternal?.modelId,
             selectedProvider?.baseUrl,
+            selectedProvider?.apiType,
           );
         const supportsBuiltinWebFetch = providerSupportsBuiltinWebFetch(
           selectedProvider?.providerType,
@@ -3269,6 +3290,8 @@ export function ChatPage({
           hostedCodeExecutionForThisTurn: supportsBuiltinCodeExecution,
           providerHostsCodeExecution: providerHostsCodeExecution(
             selectedProvider?.providerType,
+            selectedProvider?.baseUrl,
+            selectedProvider?.apiType,
           ),
           supportsStudioTools: supportsStudioToolsHere,
         });
