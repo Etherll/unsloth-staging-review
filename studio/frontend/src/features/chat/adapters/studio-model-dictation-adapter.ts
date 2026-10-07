@@ -7,7 +7,9 @@ import {
   isAudioCppFolderId,
 } from "../../audio/audio-cpp-catalog";
 import { authFetch } from "@/features/auth";
+import { listGgufVariants } from "@/features/hub/inventory/api";
 import { hubTokenHeader } from "@/features/hub/lib/hub-token-header";
+import { getHfToken, hfApiToken } from "@/features/hub/stores/hf-token-store";
 import { useSettingsDialogStore } from "@/features/settings/stores/settings-dialog-store";
 import { requestSttDownload } from "@/features/settings/stores/stt-download-prompt-store";
 import {
@@ -18,7 +20,10 @@ import {
   isCuratedSttModel,
   recordRecentDictation,
   resolveModelDictationLanguage,
+  sttListedQuantDownloaded,
+  sttModelVariant,
   useVoiceSettingsStore,
+  withSttVariant,
 } from "@/features/settings/stores/voice-settings-store";
 import type { DictationAdapter } from "@assistant-ui/react";
 import { toast } from "sonner";
@@ -130,6 +135,8 @@ export async function transcribeAudioBlob(
     language?: string;
     engine?: SttEngine;
     device?: SttDevice;
+    /** Quant of a package folder model; defaults to the saved one when `model` does too. */
+    ggufVariant?: string | null;
     providerId?: string;
     signal?: AbortSignal;
   } = {},
@@ -193,7 +200,19 @@ export async function transcribeAudioBlob(
 
   const language = resolveModelDictationLanguage(model, languageSetting);
   const engine = options.engine ?? sttEngineFor(model);
-  const params = new URLSearchParams({ model, fast: "true", engine });
+  // A cold sidecar resolves a bare row to its default quant, so the pick travels as `row:variant`.
+  const variant =
+    options.ggufVariant !== undefined
+      ? options.ggufVariant
+      : options.model === undefined
+        ? sttModelVariant(model, settings.sttGgufVariant)
+        : null;
+  const params = new URLSearchParams({
+    model:
+      engine === "audiocpp" && variant ? withSttVariant(model, variant) : model,
+    fast: "true",
+    engine,
+  });
   if (language) params.set("language", language);
   params.set("device", options.device ?? settings.sttDevice);
   const response = await authFetch(
@@ -234,6 +253,8 @@ export interface SttDownloadStatus {
 export interface SttEngineStatus {
   available: boolean;
   loaded_model: string | null;
+  /** Quant of the resident audiocpp model; absent on the other engines. */
+  loaded_variant?: string | null;
   loading: boolean;
   device: string | null;
   keep_alive_seconds: number;
@@ -323,6 +344,20 @@ export async function validateSttModel(
     } | null;
     throw new Error(body?.detail ?? `HTTP ${response.status}`);
   }
+}
+
+/** Whether a pinned quant's own files are on disk. Status lists rows, so a row counts as downloaded
+ *  once any quant is cached; an unreadable listing defers to that row status. */
+export async function sttQuantDownloaded(
+  model: string,
+  ggufVariant: string | null | undefined,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (!ggufVariant) return true;
+  const listing = await listGgufVariants(model, hfApiToken(getHfToken()), {
+    signal,
+  }).catch(() => null);
+  return !listing || sttListedQuantDownloaded(listing, ggufVariant);
 }
 
 /** The quant an audiocpp pick names, as the request field; every other engine takes none. A saved
@@ -494,6 +529,9 @@ export class StudioModelDictationAdapter implements DictationAdapter {
     const sessionEngine = usesExternalEndpoint
       ? undefined
       : sttEngineFor(sessionModel);
+    const sessionVariant = usesExternalEndpoint
+      ? null
+      : sttModelVariant(sessionModel, settings.sttGgufVariant);
     const sessionChatId = resolveDictationChatId(this.chatId);
 
     const speechStartCallbacks = new Set<() => void>();
@@ -556,7 +594,7 @@ export class StudioModelDictationAdapter implements DictationAdapter {
         !usesExternalEndpoint &&
         error instanceof SttModelNotDownloadedError
       ) {
-        requestSttDownload(sessionModel);
+        requestSttDownload(sessionModel, { ggufVariant: sessionVariant });
         finishSession("cancelled");
         return;
       }
@@ -637,6 +675,7 @@ export class StudioModelDictationAdapter implements DictationAdapter {
             model: sessionModel,
             language: sessionLanguage,
             engine: sessionEngine,
+            ggufVariant: sessionVariant,
             providerId: sessionProviderId,
             signal: abortController.signal,
           });
@@ -851,8 +890,14 @@ export class StudioModelDictationAdapter implements DictationAdapter {
         }
         if (!usesExternalEndpoint && sessionEngine) {
           // warm the model only after mic access; the backend never downloads here.
-          void loadSttModel(sessionModel, sessionEngine).catch(
-            (error: unknown) => reportTranscriptionError(error, "preload"),
+          void loadSttModel(
+            sessionModel,
+            sessionEngine,
+            undefined,
+            undefined,
+            sessionVariant,
+          ).catch((error: unknown) =>
+            reportTranscriptionError(error, "preload"),
           );
         }
         stopLevelMeter = startDictationLevelMeter(stream, (rawRms, now) => {
