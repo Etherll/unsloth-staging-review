@@ -11,7 +11,9 @@ import {
   AUDIO_CPP_TTS_AUDIO_TYPE,
   type AudioCppRuntimeStatus,
   audioCppDisplayName,
+  AUDIO_CPP_REPO,
   audioCppModelFor,
+  isAudioCppFolderId,
 } from "./audio-cpp-catalog.ts";
 
 /** Why the installed audio runtime cannot run this recommended speech or music model, or null
@@ -379,6 +381,67 @@ export function canTransitionAudioMode(
   return (
     busy === null || (busy === "generating" && generationPhase === "generating")
   );
+}
+
+/** The main slot's loaded model as the picker rows name it. llama-server reports a custom-folder
+ *  GGUF's file stem as active_model and its path as model_identifier, and that row uses the path;
+ *  a Hub model keeps its repo id, since model_identifier can be a cache snapshot path. */
+export function audioLoadedSelection(
+  status:
+    | {
+        active_model?: string | null;
+        model_identifier?: string | null;
+        gguf_variant?: string | null;
+      }
+    | null
+    | undefined,
+): { id: string | null; variant: string | null } {
+  const active = status?.active_model ?? null;
+  const id = active
+    ? active.includes("/")
+      ? active
+      : (status?.model_identifier ?? active)
+    : null;
+  return { id, variant: id ? (status?.gguf_variant ?? null) : null };
+}
+
+/** A deleted model is gone once the settled inventory no longer lists it; a quant delete leaves
+ *  the model listed. An audio.cpp folder is gone with its package repo, or, once the inventory
+ *  lists folder rows, when its own row is missing. */
+export function rememberedModelIsGone(
+  id: string,
+  inventory: { settled: boolean; error: boolean; available: ReadonlySet<string> },
+): boolean {
+  if (!inventory.settled || inventory.error) return false;
+  if (inventory.available.has(id.toLowerCase())) return false;
+  if (!isAudioCppFolderId(id)) return true;
+  return (
+    !inventory.available.has(AUDIO_CPP_REPO.toLowerCase()) ||
+    [...inventory.available].some((listed) => isAudioCppFolderId(listed))
+  );
+}
+
+/** Whether a delete of `deletedRepoId` can have removed the remembered model: the same repo, or
+ *  the audio.cpp package that holds the remembered folder. */
+export function deleteCoversRememberedModel(
+  deletedRepoId: string,
+  rememberedId: string,
+): boolean {
+  const deleted = deletedRepoId.toLowerCase();
+  const remembered = rememberedId.toLowerCase();
+  return remembered === deleted || remembered.startsWith(`${deleted}/`);
+}
+
+const HUB_REPO_ID_RE = /^[\w.-]+\/[\w.-]+$/;
+
+/** A remembered Hub repo the settled inventory no longer lists is not offered, even when it was
+ *  deleted while nothing on this page was listening. Local folders and trained checkpoints are not
+ *  listed by repo id, so they are always offered. Nothing is forgotten here. */
+export function rememberedModelUnavailable(
+  id: string,
+  inventory: { settled: boolean; error: boolean; available: ReadonlySet<string> },
+): boolean {
+  return HUB_REPO_ID_RE.test(id) && rememberedModelIsGone(id, inventory);
 }
 
 /** A managed TTS completion owns auto-load only while the same staging generation is selected
