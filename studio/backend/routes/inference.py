@@ -50578,7 +50578,12 @@ async def load_diffusion_model_gated(
                 finally:
                     eviction_sink.reset(sink_token)
 
-            status_dict = await asyncio.to_thread(_acquire_and_begin)
+            from core.inference.chat_swap_kv import save_chat_kv_before_swap
+            swap = await save_chat_kv_before_swap(DIFFUSION, "image", **fit_kwargs)
+            try:
+                status_dict = await asyncio.to_thread(_acquire_and_begin)
+            finally:
+                swap.close()
         else:
             # A CPU-only native load never touches the GPU, but switching FROM a previous GPU load leaves DIFFUSION marked as owner, so release (owner-guarded).
             await asyncio.to_thread(release, DIFFUSION)
@@ -51847,6 +51852,10 @@ async def diffusion_load_progress(
     current_subject: str = Depends(get_current_subject),
     via_api_key: bool = Depends(authenticated_via_api_key),
 ):
+    from core.inference.chat_swap_kv import saving_progress
+    saving = saving_progress("image")
+    if saving is not None:
+        return DiffusionLoadProgressResponse(**saving)
     if account_access.resident_hidden("diffusion"):
         return account_access.hidden_resident_response()
     from core.inference.diffusion_engine_router import get_active_diffusion_engine
