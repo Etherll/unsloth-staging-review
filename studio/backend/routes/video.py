@@ -341,7 +341,6 @@ async def load_video_model_gated(
         acquire_for_request,
         eviction_sink,
         note_evictions,
-        policy_kwargs,
         refusal_for,
         release,
         require_no_foreign_generations,
@@ -494,14 +493,18 @@ async def load_video_model_gated(
             # Register the in-flight load UNDER the arbiter lock: otherwise a competing acquire in that gap evicts VIDEO
             # before the load is marked, finds nothing to cancel, and both allocate at once. The training admission wraps
             # the same span.
+            from core.inference.gpu_residency import media_fit_kwargs
             from routes.inference import _diffusion_training_admission
+
+            fit_kwargs = await asyncio.to_thread(
+                media_fit_kwargs, VIDEO, request, gpu_ordinal, multi_model_mode
+            )
+
             def _acquire_and_begin():
                 token = eviction_sink.set(evicted)
                 try:
                     with _diffusion_training_admission():
-                        return acquire_for_request(
-                            VIDEO, _begin_load, **policy_kwargs(multi_model_mode)
-                        )
+                        return acquire_for_request(VIDEO, _begin_load, **fit_kwargs)
                 finally:
                     eviction_sink.reset(token)
 
