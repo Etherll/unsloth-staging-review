@@ -200,8 +200,12 @@ export const BUDGET = {
   // (6,800,980 -> 6,805,412 B raw, 2,045,645 -> 2,047,341 B transfer against 15e4bc8fde, one machine and build,
   // Node 24, chunk count unchanged at 95): the shared slide module and SegmentedPill, imported by toggles that
   // already live in startup chunks, so there is no separate module to lazy-load. Raised by that growth.
-  transferBytes: 2_047_477,
-  rawBytes: 6_805_847,
+  // The Images pill making images and videos with the loaded local models adds 4,975 B raw / 1,658 B transfer
+  // (6,797,963 -> 6,802,938 B raw, 2,044,964 -> 2,046,622 B transfer against d0ffef38b7, one machine and build,
+  // Node 24, chunk count unchanged at 95): the local image and video cards in the eager tool UI registry and the
+  // composer and adapter gates in the eager chat chunk. Raised by that growth.
+  transferBytes: 2_049_135,
+  rawBytes: 6_810_822,
 };
 
 // The chunk count is reported but not budgeted. Splitting a page out of the entry raises it while lowering the
