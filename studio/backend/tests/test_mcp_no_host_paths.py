@@ -22,6 +22,7 @@ from studio_mcp.outputs import RouteText, ToolOutput
 
 from .mcp_harness import (
     OUT,
+    PNG_URL,
     RUN_CHECKPOINTS,
     SENTINEL_ROOTS,
     WAV_INPUT,
@@ -34,6 +35,10 @@ from .test_mcp_tools_audio import PAYLOADS as AUDIO_PAYLOADS
 from .test_mcp_tools_audio import TRANSCRIPT, VERBOSE
 from .test_mcp_tools_cancel import PAYLOADS as CANCEL_PAYLOADS
 from .test_mcp_tools_datasets import PAYLOADS as DATASETS_PAYLOADS
+from .test_mcp_tools_datasets_images import PAYLOADS as IMAGE_DATASET_PAYLOADS
+from .test_mcp_tools_download import TOOL_PAYLOADS as DOWNLOAD_PAYLOADS
+from .test_mcp_train_to_use import _routes as TRAIN_TO_USE_ROUTES
+from .test_mcp_tools_datasets_upload import PAYLOADS as UPLOAD_PAYLOADS
 from .test_mcp_tools_images import PAYLOADS as IMAGES_PAYLOADS
 from .test_mcp_tools_loading import PAYLOADS as LOADING_PAYLOADS
 from .test_mcp_tools_plan_load import _world as plan_world
@@ -70,12 +75,17 @@ EXPORT_PAYLOADS = {
 CASES: dict[str, Any] = {
     "studio_status": (STATUS_PAYLOADS, {}),
     "list_models": (MODELS_PAYLOADS, {"model": "unsloth/Qwen3-0.6B"}),
-    "load_model": (LOADING_PAYLOADS, {"model": "unsloth/Llama-3.2-1B-Instruct-GGUF"}),
+    "load_model": [
+        (LOADING_PAYLOADS, {"model": "unsloth/Llama-3.2-1B-Instruct-GGUF"}),
+        (TRAIN_TO_USE_ROUTES([f"{OUT}/qwen-lora"]), {"checkpoint": "qwen-lora"}),
+        (TRAIN_TO_USE_ROUTES([f"{OUT}/qwen-lora"]), {"export": "qwen-GGUF", "variant": "Q4_K_M"}),
+    ],
     "unload_model": (LOADING_PAYLOADS, {}),
     "plan_load": (
         plan_world("off", ["unsloth/Qwen3-0.6B-GGUF"]),
         {"model": "unsloth/Qwen3-0.6B-GGUF"},
     ),
+    "download_model": (DOWNLOAD_PAYLOADS, {"model": "unsloth/Qwen3-0.6B-GGUF"}),
     "chat": (TEXT_PAYLOADS, {"prompt": "hi"}),
     "embed": (TEXT_PAYLOADS, {"texts": ["a", "b"]}),
     "system_one": (TEXT_PAYLOADS, {"state": "x", "questions": {"urgent": {"type": "noul"}}}),
@@ -85,6 +95,7 @@ CASES: dict[str, Any] = {
         (VIDEO_PAYLOADS, {"kind": "video"}),
         (VIDEO_PAYLOADS, {"kind": "video", "id": "video-1"}),
         (RECIPE_PAYLOADS, {"kind": "recipe", "id": "job-1", "rows": 2}),
+        (DOWNLOAD_PAYLOADS, {"kind": "download", "id": "a/b::Q4_K_M"}),
     ],
     "start_training": [
         (TRAINING_PAYLOADS, {"config": {"model_name": "m"}}),
@@ -98,12 +109,19 @@ CASES: dict[str, Any] = {
     "cancel": [
         (CANCEL_PAYLOADS, {"kind": "training"}),
         (CANCEL_PAYLOADS, {"kind": "recipe", "id": "rec-1"}),
+        (DOWNLOAD_PAYLOADS, {"kind": "model_download", "id": "a/b::Q4_K_M"}),
     ],
     "run_recipe": (RECIPE_PAYLOADS, {"recipe": {"columns": [{"name": "q"}]}}),
     "datasets": [
         (DATASETS_PAYLOADS, {"action": "list"}),
         (DATASETS_PAYLOADS, {"action": "check_format", "name": "a/b"}),
         (DATASETS_PAYLOADS, {"action": "status", "repo_id": "a/b"}),
+        (UPLOAD_PAYLOADS, {"action": "upload", "rows": [{"text": "hi"}]}),
+        (UPLOAD_PAYLOADS, {"action": "upload", "data_base64": "YSxi", "filename": "a.csv"}),
+        (
+            IMAGE_DATASET_PAYLOADS,
+            {"action": "upload_images", "name": "p", "images": [PNG_URL], "captions": ["c"]},
+        ),
     ],
     "transcribe": (TRANSCRIBE_PAYLOADS, {"audio": WAV_INPUT, "timestamps": True, "language": "en"}),
     "generate_audio": (AUDIO_PAYLOADS, {"workflow": "clone", "text": "hi", "reference": WAV_INPUT}),

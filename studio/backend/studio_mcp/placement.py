@@ -55,7 +55,8 @@ def media_knobs(kind: str, **knobs: Optional[str]) -> dict[str, str]:
 
 
 def is_local(model: str) -> bool:
-    return model.startswith(("/", "\\", ".", "~")) or ":" in model[:3]
+    # A host path, or the ref: handle a checkpoint or export load sends.
+    return model.startswith(("/", "\\", ".", "~", "ref:")) or ":" in model[:3]
 
 
 def is_gguf(model: str, variant: Optional[str]) -> bool:
@@ -101,6 +102,9 @@ async def listed_gguf(caller: Caller, model: str, variant: Optional[str]) -> Opt
     repo, variant = _split(model, variant)
     if repo.lower().startswith(AUDIO_CPP_PREFIX):
         return False
+    if repo.startswith("ref:"):
+        # A trained load's handle: only a GGUF export carries a variant (its quantization).
+        return bool(variant)
     if is_local(repo) and repo.lower().endswith(".gguf"):
         return True
     listing = await _variants(caller, repo)
