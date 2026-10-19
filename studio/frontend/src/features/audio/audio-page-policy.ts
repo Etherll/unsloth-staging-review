@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright 2026-present the Unsloth AI Inc. team. All rights reserved. See /studio/LICENSE.AGPL-3.0
 
+import type { InferenceStatusResponse } from "@/features/chat";
 import type { ModelSelectorChangeMeta } from "@/features/model-picker/components/model-selector/types";
 import { nativeAudioCheckpointIsLoadable } from "../model-picker/components/model-selector/audio-picker-policy.ts";
 import {
@@ -795,4 +796,69 @@ export function reconcileSttSelection({
     return repoIdForSidecarKey(loadedModel, loadedEngine ?? "transformers");
   }
   return preservePending ? selectedRepo : null;
+}
+
+/** The Audio page's own view of the server: the audio model it should show, generate with and
+ *  eject. The primary model is the chat model when an audio model was loaded beside it, and it is
+ *  empty once that chat model is ejected (a kept model is never promoted), so the page asks each
+ *  other serving model for its status; `probe` is GET /status?model=. */
+export async function describeAudioSlot(
+  primary: InferenceStatusResponse,
+  probe: (model: string) => Promise<InferenceStatusResponse>,
+): Promise<{
+  status: InferenceStatusResponse;
+  slotModel: string | null;
+  slotLabel: string | null;
+}> {
+  if (primary.is_audio) {
+    return { status: primary, slotModel: null, slotLabel: null };
+  }
+  const serving = primary.serving ?? [];
+  const checkpoints = primary.serving_checkpoints ?? [];
+  // Skip the active model itself. A kept model can share its short name, so compare checkpoints
+  // when the server sends them.
+  const primaryId = primary.model_identifier || primary.active_model;
+  for (let i = 0; i < serving.length; i++) {
+    const checkpoint = checkpoints[i];
+    const id = checkpoint || serving[i];
+    const isPrimary =
+      Boolean(primary.active_model) &&
+      (checkpoint ? checkpoint === primaryId : serving[i] === primary.active_model);
+    if (!id || isPrimary) {
+      continue;
+    }
+    // An id not held in a slot answers with the primary (the chat model), so only audio counts.
+    const slot: InferenceStatusResponse | null = await probe(id).catch(
+      () => null,
+    );
+    // Route by the id it was probed with: for a local model the status shows only a short name.
+    if (slot?.is_audio && slot.active_model) {
+      return { status: slot, slotModel: id, slotLabel: slot.active_model };
+    }
+  }
+  // Only a chat model (or nothing) is loaded: show no audio model, so Eject and the header never
+  // act on it.
+  return {
+    status: {
+      ...primary,
+      active_model: null,
+      model_identifier: null,
+      gguf_variant: null,
+      is_audio: false,
+    },
+    slotModel: null,
+    slotLabel: null,
+  };
+}
+
+/** The audio model a new speech load replaces, by the id it is unloaded by (a local model's path;
+ *  its status names it only by a short name). It is unloaded after the new one loads, because the
+ *  load keeps other models beside it and two speech models would otherwise stay loaded. */
+export function audioModelToReplace(
+  status: InferenceStatusResponse | null | undefined,
+  target: string,
+): string | null {
+  if (!status?.is_audio || !status.active_model) return null;
+  const current = status.model_identifier || status.active_model;
+  return current !== target && status.active_model !== target ? current : null;
 }

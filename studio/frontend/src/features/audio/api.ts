@@ -86,6 +86,38 @@ export async function fetchAudioCatalog(): Promise<AudioCatalogResponse> {
   return parseJson<AudioCatalogResponse>(response);
 }
 
+// The speech model the page uses when it sits beside the chat model, which a request naming no
+// model would reach instead: its routing id (a local model's path), and the name its status shows.
+// Null when the audio model is the active one.
+let audioSlotModel: string | null = null;
+let audioSlotLabel: string | null = null;
+
+export function setAudioSlotModel(
+  model: string | null,
+  label: string | null = model,
+): void {
+  audioSlotModel = model;
+  audioSlotLabel = model ? label : null;
+}
+
+/** The routing id of the kept speech model the status names `model`, or null when it is not one. */
+export function audioSlotRoutingId(
+  model: string | null | undefined,
+): string | null {
+  return model && audioSlotModel && model === audioSlotLabel
+    ? audioSlotModel
+    : null;
+}
+
+/** True when `model` is the speech model kept beside the chat model, not the active one. */
+export function isAudioSlotModel(model: string | null | undefined): boolean {
+  return audioSlotRoutingId(model) !== null;
+}
+
+function withAudioSlotModel<T extends object>(body: T): T {
+  return audioSlotModel ? { ...body, model: audioSlotModel } : body;
+}
+
 export async function generateAudio(
   text: string,
   options: GenerateAudioOptions = {},
@@ -94,11 +126,13 @@ export async function generateAudio(
   const response = await authFetch("/api/inference/audio/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages: [{ role: "user", content: text }],
-      stream: false,
-      ...sampling,
-    }),
+    body: JSON.stringify(
+      withAudioSlotModel({
+        messages: [{ role: "user", content: text }],
+        stream: false,
+        ...sampling,
+      }),
+    ),
     signal,
   });
   return parseJson<GenerateAudioResponse>(response);
@@ -507,7 +541,7 @@ export async function runAudio(
   const response = await authFetch("/api/inference/audio/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buildAudioRunBody(request)),
+    body: JSON.stringify(withAudioSlotModel(buildAudioRunBody(request))),
     signal,
   });
   return parseAudioJson<AudioRunResponse>(response);
