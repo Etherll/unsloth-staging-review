@@ -127,7 +127,7 @@ test("every catalog tool has a short label, and an unknown one falls back to its
   assert.match(TOOLS, /const label = labelKey \? t\(labelKey\) : tool\.name;/);
   assert.match(
     TOOLS,
-    /\{labelKey \? \(\s*<span className="text-ui-11 text-muted-foreground font-mono/,
+    /\{labelKey \? \(\s*<span className="font-mono break-all">\{tool\.name\}<\/span>/,
   );
 });
 
@@ -181,6 +181,14 @@ test("the Agents row shows the status as text and opens the MCP tab", () => {
     /<CommandBlock command=\{shellCommands\.dryRun\} \/>\s*<\/div>\s*<\/SettingsSection>\s*<UnslothStudioMcpRow \/>\s*<\/div>\s*\);\s*\}\s*$/,
   );
   assert.doesNotMatch(AGENTS_TAB, /tabs\/mcp-tab/);
+});
+
+test("a tool chat never gets carries a muted Not in chat note", () => {
+  assert.equal(en.settings.mcp.tools.notInChat, "Not in chat");
+  assert.match(
+    TOOLS,
+    /<span className="flex flex-wrap gap-x-2 text-ui-11 text-muted-foreground">[\s\S]*?\{tool\.chat === false \? \(\s*<span>\{t\("settings\.mcp\.tools\.notInChat"\)\}<\/span>/,
+  );
 });
 
 test("no emerald and no unscaled lengths", () => {

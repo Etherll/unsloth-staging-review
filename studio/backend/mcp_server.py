@@ -72,13 +72,22 @@ def tool_names() -> tuple[str, ...]:
     return tuple(entry["name"] for entry in tool_catalog())
 
 
-def create_studio_mcp() -> FastMCP:
-    """Create the Unsloth MCP server and register the high-value tools."""
+# Never offered to an Unsloth Studio chat: they would evict, restart, cancel or re-enter the chat that calls them.
+# export_model also keeps working after the call returns, past the chat's per-call key, and loads a checkpoint.
+CHAT_DENYLIST = frozenset(
+    {"chat", "load_model", "unload_model", "cancel", "start_training", "export_model"}
+)
+
+
+def create_studio_mcp(exclude: frozenset = frozenset()) -> FastMCP:
+    """Create the Unsloth MCP server and register the high-value tools, minus ``exclude``."""
     mcp = FastMCP("Unsloth Studio", instructions = INSTRUCTIONS)
     mcp.add_middleware(StudioToolAccess())
 
     for module in TOOL_MODULES:
         for tool, annotations, *schema in module.TOOLS:
+            if tool.__name__ in exclude:
+                continue
             mcp.tool(
                 tool, annotations = annotations, **({"output_schema": schema[0]} if schema else {})
             )
