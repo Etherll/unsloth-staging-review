@@ -54,6 +54,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable, Union
 from datasets import Dataset
 from core.training.eval_dataset import evaluation_enabled
+from core.training.eval_loss import use_local_eval_loss
 from utils.datasets.audio_decode import ensure_audio_decoding
 from utils.datasets.tokenizer_fingerprint import install_tokenizer_fingerprint
 from utils.datasets.cache_safe import load_dataset_cache_safe as load_dataset
@@ -5014,6 +5015,7 @@ class UnslothTrainer:
                 # Restore the full processor so checkpoints include preprocessor_config.json (GGUF export).
                 if sft_tokenizer is not self.tokenizer:
                     self.trainer.processing_class = self.tokenizer
+            use_local_eval_loss(self.trainer)
             logger.info("Trainer initialized\n")
 
             # Raw-text datasets always train on all tokens.
